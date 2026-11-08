@@ -211,9 +211,9 @@ services:
     build:
       context: ..
       dockerfile: deployment/web/Dockerfile
-    args:
-      # Must match BFF_API_TOKEN in bff/.env (empty = open, local dev only).
-      VITE_BFF_TOKEN: ${VITE_BFF_TOKEN:-}
+      args:
+        # Must match BFF_API_TOKEN in bff/.env (empty = open, local dev only).
+        VITE_BFF_TOKEN: ${VITE_BFF_TOKEN:-}
     networks: [frappe_network]
     restart: on-failure
     ports:
