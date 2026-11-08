@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json tsconfig.json tsconfig.build.json ./
-RUN npm ci
+COPY package.json tsconfig.json tsconfig.build.json ./
+RUN npm install
 COPY src ./src
 RUN npx tsc -p tsconfig.build.json
 
