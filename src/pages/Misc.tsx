@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Activity, ArrowRightLeft, CalendarDays, CheckCircle2, ClipboardList, Droplets, HandMetal, ShieldCheck, Syringe, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Activity, ArrowRightLeft, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Droplets, HandMetal, ShieldCheck, Syringe, TrendingUp } from 'lucide-react';
 import { appointmentList, inr, patients } from '@/data/mock';
 import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { StaffRole } from '@/pages/Login';
 
 export function NursingPage() {
   const [done, setDone] = useState<string[]>([]);
@@ -98,14 +99,24 @@ export function InsurancePage() {
   );
 }
 
-export function AppointmentsPage() {
+export function AppointmentsPage({ session }: { session: { name: string; role: StaffRole } | null }) {
+  const dateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  const today = dateKey(new Date());
+  const [selectedDate, setSelectedDate] = useState(today);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [patientUhid, setPatientUhid] = useState(patients[0]?.uhid ?? '');
   const [doctorId, setDoctorId] = useState('');
   const [time, setTime] = useState('09:30');
+  const [doctorFilter, setDoctorFilter] = useState('all');
   const [savedAppointments, setSavedAppointments] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('Sanmaya_appointments') ?? '[]') as Array<{ doctor: string; patient: string; time: string; token: string; status?: string }>;
+      const parsed = JSON.parse(localStorage.getItem('Sanmaya_appointments') ?? '[]');
+      return Array.isArray(parsed) ? parsed as Array<{ doctor: string; patient: string; time: string; token: string; status?: string; date?: string }> : [];
     } catch {
       return [];
     }
@@ -117,13 +128,29 @@ export function AppointmentsPage() {
         { id: 'DR-KARTHIK', name: 'Dr. Karthik Rao', department: 'Cardiology', timings: '09:00-13:00, 16:00-18:00' },
         { id: 'DR-SURESH', name: 'Dr. Suresh Iyer', department: 'General Medicine', timings: '08:30-12:30, 15:00-17:00' },
         { id: 'DR-VIKRAM', name: 'Dr. Vikram Nair', department: 'Orthopaedics', timings: '10:00-14:00' },
+        { id: 'DR-ANITHA', name: 'Dr. Anitha Das', department: 'Dermatology', timings: '09:30-14:30' },
       ];
     } catch {
       return [];
     }
   });
+
+  const ownDoctor = useMemo(() => {
+    if (session?.role !== 'Doctor') return null;
+    const search = session.name.toLowerCase();
+    return doctors.find((doctor) => doctor.id.toLowerCase().includes(search) || doctor.name.toLowerCase().includes(search)) ?? null;
+  }, [doctors, session]);
+
   const selectedDoctor = doctors.find((doctor) => doctor.id === doctorId) ?? doctors[0];
   const selectedPatient = patients.find((patient) => patient.uhid === patientUhid);
+
+  const addDays = (date: string, amount: number) => {
+    const next = new Date(`${date}T12:00:00`);
+    next.setDate(next.getDate() + amount);
+    return dateKey(next);
+  };
+
+  const moveDate = (amount: number) => setSelectedDate((value) => addDays(value, amount));
 
   const issueToken = () => {
     if (!selectedDoctor || !selectedPatient) {
@@ -138,18 +165,18 @@ export function AppointmentsPage() {
       toast.error('Outside doctor availability', { description: `${selectedDoctor.name} is scheduled ${selectedDoctor.timings}.` });
       return;
     }
-    if (savedAppointments.some((item) => item.doctor === selectedDoctor.id && item.time === time)) {
+    if (savedAppointments.some((item) => item.doctor === selectedDoctor.id && item.time === time && (item.date ?? today) === selectedDate)) {
       toast.error('That doctor already has an appointment at this time.');
       return;
     }
     const prefix = selectedDoctor.department === 'General Medicine' ? 'GM' : selectedDoctor.department.slice(0, 2).toUpperCase();
-    const token = `${prefix}-${String(savedAppointments.filter((item) => item.doctor === selectedDoctor.id).length + 1).padStart(2, '0')}`;
-    const next = [...savedAppointments, { doctor: selectedDoctor.id, patient: selectedPatient.uhid, time, token, status: 'Waiting' }];
+    const token = `${prefix}-${String(savedAppointments.filter((item) => item.doctor === selectedDoctor.id && (item.date ?? today) === selectedDate).length + 1).padStart(2, '0')}`;
+    const next = [...savedAppointments, { doctor: selectedDoctor.id, patient: selectedPatient.uhid, time, token, status: 'Waiting', date: selectedDate }];
     localStorage.setItem('Sanmaya_appointments', JSON.stringify(next));
     setSavedAppointments(next);
     selectedPatient.doctor = selectedDoctor.name;
     selectedPatient.status = 'Waiting';
-    toast.success(`OPD token ${token} issued`, { description: `${selectedPatient.name} queued with ${selectedDoctor.name} at ${time}.` });
+    toast.success(`OPD token ${token} issued`, { description: `${selectedPatient.name} queued with ${selectedDoctor.name}.` });
     setBookingOpen(false);
   };
 
@@ -157,66 +184,167 @@ export function AppointmentsPage() {
     const patient = patients.find((entry) => entry.uhid === item.patient);
     const doctor = doctors.find((entry) => entry.id === item.doctor);
     return {
+      date: item.date ?? today,
       time: item.time,
       patient: patient?.name ?? item.patient,
       doctor: doctor?.name ?? item.doctor,
+      doctorId: item.doctor,
       token: item.token,
       type: 'OPD',
       status: item.status ?? 'Waiting',
     };
   });
+
+  const mockAppointments = appointmentList.map((item) => ({
+    ...item,
+    date: today,
+    doctorId: doctors.find((doctor) => doctor.name === item.doctor)?.id ?? item.doctor,
+    status: item.type === 'New' ? 'In consult' : 'Waiting',
+  }));
   const displayedAppointments = [
+    ...mockAppointments.filter((item) => !liveQueue.some((live) => live.token === item.token)),
     ...liveQueue,
-    ...appointmentList
-      .filter((item) => !liveQueue.some((live) => live.token === item.token))
-      .map((item) => ({ ...item, status: item.type === 'New' ? 'In consult' : 'Waiting' })),
   ];
 
+  const appointmentsForDate = displayedAppointments.filter((item) => item.date === selectedDate);
+  const visibleAppointments = appointmentsForDate.filter((item) => {
+    if (session?.role === 'Doctor') return ownDoctor ? item.doctorId === ownDoctor.id || item.doctor === ownDoctor.name : false;
+    return doctorFilter === 'all' || item.doctorId === doctorFilter || item.doctor === doctorFilter;
+  }).sort((a, b) => a.time.localeCompare(b.time));
+
+  const visibleDoctors = session?.role === 'Doctor'
+    ? (ownDoctor ? [ownDoctor] : [])
+    : doctors;
+
+  const dateLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const quickDates = [
+    { label: 'Yesterday', date: addDays(today, -1) },
+    { label: 'Today', date: today },
+    { label: 'Tomorrow', date: addDays(today, 1) },
+  ];
+  const stripDates = Array.from({ length: 7 }, (_, index) => addDays(addDays(selectedDate, -3), index));
+
   return (
-    <div className="mx-auto w-full max-w-[1100px] space-y-5 p-4 lg:p-6">
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-extrabold tracking-tight">Appointments — today</h2>
-          <p className="text-[13px] text-muted-foreground">Tokens issued at registration · reminders sent by SMS/WhatsApp.</p>
+          <h2 className="text-[20px] font-extrabold tracking-tight">Appointments</h2>
+          <p className="text-[13px] text-muted-foreground">{session?.role === 'Doctor' ? 'Your patient schedule' : 'Hospital-wide doctor schedule and bookings'}</p>
         </div>
-        <button onClick={() => setBookingOpen((value) => !value)} className="focus-ring flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-bold text-primary-foreground hover:bg-blue-700">
-          <CalendarDays className="h-4 w-4" /> Book appointment
-        </button>
+        {session?.role !== 'Doctor' && (
+          <button onClick={() => setBookingOpen((value) => !value)} className="focus-ring flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-bold text-primary-foreground hover:bg-blue-700">
+            <CalendarDays className="h-4 w-4" /> Book appointment
+          </button>
+        )}
       </div>
-      {bookingOpen && (
-        <div className="card-surface grid gap-3 p-5 md:grid-cols-4">
-          <label className="text-xs font-bold text-muted-foreground">
-            Patient
+
+      {bookingOpen && session?.role !== 'Doctor' && (
+        <div className="card-surface grid gap-3 p-5 md:grid-cols-5">
+          <label className="text-xs font-bold text-muted-foreground">Patient
             <select value={patientUhid} onChange={(event) => setPatientUhid(event.target.value)} className="mt-1 w-full rounded-xl border border-input px-3 py-2 text-sm text-foreground">
               {patients.map((patient) => <option key={patient.uhid} value={patient.uhid}>{patient.name} · {patient.uhid}</option>)}
             </select>
           </label>
-          <label className="text-xs font-bold text-muted-foreground">
-            Doctor
+          <label className="text-xs font-bold text-muted-foreground">Doctor
             <select value={doctorId || selectedDoctor?.id || ''} onChange={(event) => setDoctorId(event.target.value)} className="mt-1 w-full rounded-xl border border-input px-3 py-2 text-sm text-foreground">
               {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
             </select>
           </label>
-          <label className="text-xs font-bold text-muted-foreground">
-            Time
+          <label className="text-xs font-bold text-muted-foreground">Date
+            <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="mt-1 w-full rounded-xl border border-input px-3 py-2 text-sm text-foreground" />
+          </label>
+          <label className="text-xs font-bold text-muted-foreground">Time
             <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="mt-1 w-full rounded-xl border border-input px-3 py-2 text-sm text-foreground" />
           </label>
-          <button onClick={issueToken} className="mt-auto rounded-xl bg-primary py-2.5 text-sm font-bold text-white">Check availability & issue token</button>
-          {selectedDoctor && <p className="md:col-span-4 text-[11px] text-muted-foreground">Available: {selectedDoctor.timings}</p>}
+          <button onClick={issueToken} className="mt-auto rounded-xl bg-primary py-2.5 text-sm font-bold text-white">Check & issue token</button>
+          {selectedDoctor && <p className="md:col-span-5 text-[11px] text-muted-foreground">Available: {selectedDoctor.timings}</p>}
         </div>
       )}
-      <div className="card-surface divide-y divide-border/60">
-        {displayedAppointments.map((a) => (
-          <div key={a.token} className="flex items-center gap-4 px-5 py-3.5">
-            <span className="w-14 shrink-0 rounded-lg bg-muted px-2 py-1.5 text-center text-[12px] font-bold text-slate-600">{a.time}</span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-semibold">{a.patient}</p>
-              <p className="truncate text-[12px] text-muted-foreground">{a.doctor}</p>
-            </div>
-            <StatusPill value={a.status} className="hidden sm:inline-flex" />
-            <span className="rounded-md bg-accent px-2 py-1 font-mono text-[11px] font-bold text-accent-foreground">{a.token}</span>
+
+      <div className="card-surface overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            {quickDates.map((item) => (
+              <button key={item.label} onClick={() => setSelectedDate(item.date)} className={cn('focus-ring rounded-full px-3 py-1.5 text-xs font-bold', selectedDate === item.date ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
+                {item.label}
+              </button>
+            ))}
           </div>
-        ))}
+          <div className="flex items-center gap-2">
+            <button aria-label="Previous day" onClick={() => moveDate(-1)} className="grid size-8 place-items-center rounded-lg border border-border hover:bg-muted"><ChevronLeft className="size-4" /></button>
+            <p className="min-w-[210px] text-center text-sm font-bold">{dateLabel}</p>
+            <button aria-label="Next day" onClick={() => moveDate(1)} className="grid size-8 place-items-center rounded-lg border border-border hover:bg-muted"><ChevronRight className="size-4" /></button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 border-b border-border">
+          {stripDates.map((date) => {
+            const parsed = new Date(`${date}T12:00:00`);
+            const count = displayedAppointments.filter((item) => item.date === date).length;
+            return (
+              <button key={date} onClick={() => setSelectedDate(date)} className={cn('relative border-r border-border px-2 py-3 text-center last:border-r-0 hover:bg-muted/60', selectedDate === date && 'bg-blue-50')}>
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">{parsed.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+                <span className={cn('mx-auto mt-1 grid size-8 place-items-center rounded-full text-sm font-extrabold', selectedDate === date && 'bg-primary text-white', date === today && selectedDate !== date && 'text-primary')}>{parsed.getDate()}</span>
+                {count > 0 && <span className="mt-1 block text-[10px] font-bold text-muted-foreground">{count} booked</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {session?.role !== 'Doctor' && (
+          <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-3">
+            <button onClick={() => setDoctorFilter('all')} className={cn('focus-ring shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold', doctorFilter === 'all' ? 'border-primary bg-primary text-white' : 'border-border bg-white text-slate-600')}>All doctors <span className="ml-1 opacity-75">{appointmentsForDate.length}</span></button>
+            {doctors.map((doctor) => {
+              const count = appointmentsForDate.filter((item) => item.doctorId === doctor.id || item.doctor === doctor.name).length;
+              return (
+                <button key={doctor.id} onClick={() => setDoctorFilter(doctor.id)} className={cn('focus-ring shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold', doctorFilter === doctor.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-border bg-white text-slate-600')}>
+                  {doctor.name.replace('Dr. ', '')} <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px]">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="min-h-[420px] p-4">
+          {visibleDoctors.length > 1 ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visibleDoctors.map((doctor) => {
+                const doctorAppointments = visibleAppointments.filter((item) => item.doctorId === doctor.id || item.doctor === doctor.name);
+                if (doctorFilter !== 'all' && doctorFilter !== doctor.id) return null;
+                return (
+                  <section key={doctor.id} className="rounded-2xl border border-border bg-white">
+                    <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                      <div><p className="text-sm font-extrabold">{doctor.name}</p><p className="text-[11px] text-muted-foreground">{doctor.department}</p></div>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-extrabold text-blue-700">{doctorAppointments.length} patients</span>
+                    </div>
+                    <div className="space-y-2 p-3">
+                      {doctorAppointments.map((appointment) => (
+                        <article key={appointment.token} className="rounded-xl border-l-4 border-l-blue-500 bg-slate-50 px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div><p className="text-sm font-bold">{appointment.patient}</p><p className="text-[11px] text-muted-foreground">{appointment.type ?? 'OPD'} · {appointment.token}</p></div>
+                            <span className="text-xs font-extrabold text-slate-700">{appointment.time}</span>
+                          </div>
+                        </article>
+                      ))}
+                      {!doctorAppointments.length && <p className="py-8 text-center text-xs text-muted-foreground">No appointments</p>}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mx-auto max-w-3xl space-y-2">
+              {visibleAppointments.map((appointment) => (
+                <div key={appointment.token} className="flex items-center gap-4 rounded-xl border border-border bg-white px-4 py-3">
+                  <span className="w-14 shrink-0 rounded-lg bg-blue-50 px-2 py-1.5 text-center text-xs font-extrabold text-blue-700">{appointment.time}</span>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{appointment.patient}</p><p className="text-[11px] text-muted-foreground">{appointment.type ?? 'OPD'} · {appointment.token}</p></div>
+                  <StatusPill value={appointment.status} />
+                </div>
+              ))}
+              {!visibleAppointments.length && <div className="grid min-h-[280px] place-items-center text-sm text-muted-foreground">No appointments scheduled for this day</div>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

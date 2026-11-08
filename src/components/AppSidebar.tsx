@@ -21,25 +21,25 @@ export interface NavItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: Array<'Admin' | 'Doctor' | 'Nurse' | 'Reception'>;
+  roles?: Array<'SuperAdmin' | 'Admin' | 'Doctor' | 'Nurse' | 'Reception'>;
 }
 
 export const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
-  { id: 'registration', label: 'Patient Management', icon: UserPlus, roles: ['Admin', 'Reception'] },
-  { id: 'opd', label: 'Outpatient', icon: HeartPulse, roles: ['Admin', 'Doctor'] },
-  { id: 'ipd', label: 'Inpatient Management', icon: BedDouble, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
-  { id: 'lab', label: 'Laboratory', icon: FlaskConical, roles: ['Admin', 'Doctor', 'Nurse'] },
-  { id: 'pharmacy', label: 'Pharmacy', icon: Pill, roles: ['Admin', 'Doctor', 'Nurse'] },
-  { id: 'billing', label: 'Billing & Payments', icon: CreditCard, roles: ['Admin', 'Reception'] },
-  { id: 'insurance', label: 'Insurance', icon: ShieldCheck, roles: ['Admin', 'Reception'] },
-  { id: 'nursing', label: 'Nursing Care', icon: Activity, roles: ['Admin', 'Doctor', 'Nurse'] },
-  { id: 'calendar', label: 'Appointments', icon: CalendarDays, roles: ['Admin', 'Doctor', 'Reception'] },
-  { id: 'doctors', label: 'Doctor Management', icon: Stethoscope, roles: ['Admin', 'Reception', 'Doctor'] },
-  { id: 'ot', label: 'Surgical Services', icon: Syringe, roles: ['Admin', 'Doctor'] },
-  { id: 'nurses', label: 'Nurse Management', icon: Users, roles: ['Admin', 'Nurse'] },
-  { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
-  { id: 'settings', label: 'System Settings', icon: Settings, roles: ['Admin'] },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'registration', label: 'Patient Management', icon: UserPlus, roles: ['SuperAdmin', 'Admin', 'Reception'] },
+  { id: 'opd', label: 'Outpatient', icon: HeartPulse, roles: ['SuperAdmin', 'Admin', 'Doctor'] },
+  { id: 'ipd', label: 'Inpatient Management', icon: BedDouble, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'lab', label: 'Laboratory', icon: FlaskConical, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'] },
+  { id: 'pharmacy', label: 'Pharmacy', icon: Pill, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'] },
+  { id: 'billing', label: 'Billing & Payments', icon: CreditCard, roles: ['SuperAdmin', 'Admin', 'Reception'] },
+  { id: 'insurance', label: 'Insurance', icon: ShieldCheck, roles: ['SuperAdmin', 'Admin', 'Reception'] },
+  { id: 'nursing', label: 'Nursing Care', icon: Activity, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'] },
+  { id: 'calendar', label: 'Appointments', icon: CalendarDays, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Reception'] },
+  { id: 'doctors', label: 'Doctor Management', icon: Stethoscope, roles: ['SuperAdmin', 'Admin', 'Reception', 'Doctor'] },
+  { id: 'ot', label: 'Surgical Services', icon: Syringe, roles: ['SuperAdmin', 'Admin', 'Doctor'] },
+  { id: 'nurses', label: 'Nurse Management', icon: Users, roles: ['SuperAdmin', 'Admin', 'Nurse'] },
+  { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'settings', label: 'System Settings', icon: Settings, roles: ['SuperAdmin', 'Admin'] },
 ];
 
 export function AppSidebar({
@@ -53,7 +53,7 @@ export function AppSidebar({
   onNavigate: (id: string) => void;
   onNewPatient: () => void;
   collapsed: boolean;
-  role?: 'Admin' | 'Doctor' | 'Nurse' | 'Reception';
+  role?: 'SuperAdmin' | 'Admin' | 'Doctor' | 'Nurse' | 'Reception';
 }) {
   const visibleNavItems = navItems.filter((item) => !item.roles || !role || item.roles.includes(role));
   return (

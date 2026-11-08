@@ -28,25 +28,25 @@ type RouteDefinition = {
   element: (helpers: { openPatient: (u: string) => void; navigate: (id: string) => void; selectedPatientUhid: string | null; session: StaffSession | null }) => React.ReactNode;
 };
 
-const allRoles: StaffRole[] = ['Admin', 'Doctor', 'Nurse', 'Reception'];
+const allRoles: StaffRole[] = ['SuperAdmin', 'Admin', 'Doctor', 'Nurse', 'Reception'];
 
 const routes: Record<string, RouteDefinition> = {
   dashboard: { title: 'Dashboard', roles: allRoles, element: (h) => <Dashboard onOpenPatient={h.openPatient} onNavigate={h.navigate} /> },
-  registration: { title: 'Patient Management', roles: ['Admin', 'Reception'], element: (h) => <Registration onOpenPatient={h.openPatient} /> },
+  registration: { title: 'Patient Management', roles: ['SuperAdmin', 'Admin', 'Reception'], element: (h) => <Registration onOpenPatient={h.openPatient} /> },
   patient: { title: 'Patient Record', roles: allRoles, element: (h) => h.selectedPatientUhid ? <PatientRecord uhid={h.selectedPatientUhid} session={h.session} onNavigate={h.navigate} /> : null },
-  opd: { title: 'Outpatient', roles: ['Admin', 'Doctor'], element: (h) => <EmrConsult key={`${h.selectedPatientUhid ?? 'default-patient'}-${h.session?.role}-${h.session?.name}`} uhid={h.selectedPatientUhid} session={h.session} /> },
-  ipd: { title: 'Inpatient Management', roles: ['Admin', 'Doctor', 'Nurse', 'Reception'], element: () => <IpdBeds /> },
-  lab: { title: 'Laboratory & Radiology', roles: ['Admin', 'Doctor', 'Nurse'], element: () => <LabPage /> },
-  pharmacy: { title: 'Pharmacy', roles: ['Admin', 'Doctor', 'Nurse'], element: () => <PharmacyPage /> },
-  billing: { title: 'Billing & Payments', roles: ['Admin', 'Reception'], element: () => <BillingPage /> },
-  insurance: { title: 'Insurance Management', roles: ['Admin', 'Reception'], element: () => <InsurancePage /> },
-  nursing: { title: 'Nursing Care', roles: ['Admin', 'Doctor', 'Nurse'], element: () => <NursingPage /> },
-  calendar: { title: 'Appointments', roles: ['Admin', 'Doctor', 'Reception'], element: () => <AppointmentsPage /> },
+  opd: { title: 'Outpatient', roles: ['SuperAdmin', 'Admin', 'Doctor'], element: (h) => <EmrConsult key={`${h.selectedPatientUhid ?? 'default-patient'}-${h.session?.role}-${h.session?.name}`} uhid={h.selectedPatientUhid} session={h.session} /> },
+  ipd: { title: 'Inpatient Management', roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse', 'Reception'], element: () => <IpdBeds /> },
+  lab: { title: 'Laboratory & Radiology', roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'], element: () => <LabPage /> },
+  pharmacy: { title: 'Pharmacy', roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'], element: () => <PharmacyPage /> },
+  billing: { title: 'Billing & Payments', roles: ['SuperAdmin', 'Admin', 'Reception'], element: () => <BillingPage /> },
+  insurance: { title: 'Insurance Management', roles: ['SuperAdmin', 'Admin', 'Reception'], element: () => <InsurancePage /> },
+  nursing: { title: 'Nursing Care', roles: ['SuperAdmin', 'Admin', 'Doctor', 'Nurse'], element: () => <NursingPage /> },
+  calendar: { title: 'Appointments', roles: ['SuperAdmin', 'Admin', 'Doctor', 'Reception'], element: (h) => <AppointmentsPage session={h.session} /> },
   reports: { title: 'Reports & Analytics', roles: allRoles, element: () => <ReportsPage /> },
-  settings: { title: 'System Settings', roles: ['Admin'], element: () => <SettingsPage /> },
-  doctors: { title: 'Doctor Management', roles: ['Admin', 'Reception', 'Doctor'], element: (h) => <DoctorsPage onOpenPatient={h.openPatient} /> },
-  ot: { title: 'Surgical Services', roles: ['Admin', 'Doctor'], element: () => <OTPage /> },
-  nurses: { title: 'Nurse Management', roles: ['Admin', 'Nurse'], element: () => <NurseManagementPage /> },
+  settings: { title: 'System Settings', roles: ['SuperAdmin', 'Admin'], element: () => <SettingsPage /> },
+  doctors: { title: 'Doctor Management', roles: ['SuperAdmin', 'Admin', 'Reception', 'Doctor'], element: (h) => <DoctorsPage onOpenPatient={h.openPatient} /> },
+  ot: { title: 'Surgical Services', roles: ['SuperAdmin', 'Admin', 'Doctor'], element: () => <OTPage /> },
+  nurses: { title: 'Nurse Management', roles: ['SuperAdmin', 'Admin', 'Nurse'], element: () => <NurseManagementPage /> },
 };
 
 const readHash = () => {

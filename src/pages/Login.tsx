@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Activity, ArrowRight, Eye, EyeOff, HeartPulse, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 
-export type StaffRole = 'Admin' | 'Doctor' | 'Nurse' | 'Reception';
+export type StaffRole = 'SuperAdmin' | 'Admin' | 'Doctor' | 'Nurse' | 'Reception';
 
 export default function Login({ onLogin }: { onLogin: (staffId: string, role: StaffRole) => void }) {
   const [staffId, setStaffId] = useState('');
@@ -134,6 +134,7 @@ export default function Login({ onLogin }: { onLogin: (staffId: string, role: St
                 <option>Doctor</option>
                 <option>Nurse</option>
                 <option>Admin</option>
+                <option>SuperAdmin</option>
               </select>
             </label>
 
