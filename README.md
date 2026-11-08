@@ -1,73 +1,68 @@
-# React + TypeScript + Vite
+# HospiFront — Hospital Information Management System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A production-oriented HIMS for a 60-bed / ~500-OPD-visits-per-day Indian
+hospital: a fully custom React frontend over a **thin BFF** that talks
+REST to **Frappe Health (Marley) + ERPNext**.
 
-Currently, two official plugins are available:
+- Live preview of the frontend (demo data): open the saved version in Kimi.
+- Full-stack local run: see [`deployment/README.md`](deployment/README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Repository layout
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/                 React 19 + TypeScript + Vite frontend
+  components/        App shell (sidebar, topbar, shared UI)
+  pages/             Dashboard, Registration, OPD/EMR consult, IPD bed
+                     board, Lab, Pharmacy, Billing, Reports, Settings
+  data/mock.ts       Synthetic demo dataset (used when backend is offline)
+  lib/api.ts         Typed BFF client (health, patient search/create)
+  hooks/             useBackend — live/demo status polling
+bff/                 Thin BFF (Hono + zod) — the only Frappe credential holder
+  src/               config, Frappe REST client, patient routes, app entry
+  test/              Vitest suite with a stub Frappe server (10 tests)
+deployment/          Docker assets: Frappe image build, compose stack,
+                     BFF/web containers, full runbook
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Design language
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Light clinical SaaS (Healthray-inspired): Plus Jakarta Sans, soft gray
+canvas, primary blue `hsl(221 83% 53%)`, status pills, KPI cards with
+sparklines, dense data tables, left icon sidebar. Hash-based routing so
+the static build works anywhere.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Quick start
+
+**Frontend only (demo mode):**
+
+```bash
+npm install
+npm run dev        # http://localhost:5173 — header badge shows "Demo"
+npm run build      # static build in dist/
 ```
+
+**BFF:**
+
+```bash
+cd bff
+npm install
+cp .env.example .env   # point FRAPPE_BASE_URL at a Frappe site + API keys
+npm run dev            # http://localhost:3001
+npm test               # 10 integration tests against a stub Frappe
+```
+
+**Full stack (Docker):** everything — Frappe image, compose topology,
+secrets, verification — is documented in
+[`deployment/README.md`](deployment/README.md).
+
+## Ground rules (from the master plan)
+
+- Reuse Frappe Healthcare/ERPNext functionality before writing custom
+  code; **never modify upstream Frappe/ERPNext/Marley source**.
+- Never invent APIs, database fields, or compliance claims — BFF endpoints
+  map to documented Frappe REST resources only.
+- **Synthetic patient data only** in development; never production PHI.
+- Never hardcode secrets; all credentials come from env files/variables.
+- Clinical safety over occupancy and billing flows.
+- Thin BFF with REST is the default integration architecture; the ABHA /
+  ABDM adapter plugs in later (stable Marley has no ABHA fields yet).
