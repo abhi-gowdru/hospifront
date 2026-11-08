@@ -1,23 +1,41 @@
-import { useState } from 'react';
-import { BadgeCheck, Link2, Search, UserPlus } from 'lucide-react';
-import { patients } from '@/data/mock';
+import { useEffect, useMemo, useState } from 'react';
+import { BadgeCheck, CloudOff, Link2, Search, UserPlus, Wifi } from 'lucide-react';
+import { patients as mockPatients } from '@/data/mock';
 import { StatusPill } from '@/components/StatusPill';
 import { toast } from 'sonner';
+import { useBackend } from '@/hooks/useBackend';
+import { ApiError, createPatient, searchPatients, type PatientSummary } from '@/lib/api';
 
 export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: string) => void }) {
-  const [q, setQ] = useState('');
-  const [form, setForm] = useState({ name: '', age: '', sex: 'M', mobile: '', abha: '', address: '' });
-  const [abhaState, setAbhaState] = useState<'idle' | 'checking' | 'verified'>('idle');
+  const backend = useBackend();
+  const live = backend === 'live';
 
-  const results = q
-    ? patients.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) || p.uhid.includes(q))
-    : patients;
+  const [q, setQ] = useState('');
+  const [form, setForm] = useState({ name: '', dob: '', age: '', sex: 'M', mobile: '', email: '', bloodGroup: '' });
+  const [abhaState, setAbhaState] = useState<'idle' | 'checking' | 'verified'>('idle');
+  const [submitting, setSubmitting] = useState(false);
+  const [liveRows, setLiveRows] = useState<PatientSummary[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  // Live lookup (debounced) — only when the BFF reports Frappe is up.
+  useEffect(() => {
+    if (!live) return;
+    setSearching(true);
+    const t = setTimeout(() => {
+      searchPatients(q)
+        .then(setLiveRows)
+        .catch(() => setLiveRows([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, live]);
+
+  const mockRows = useMemo(
+    () => (q ? mockPatients.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()) || p.uhid.includes(q)) : mockPatients),
+    [q],
+  );
 
   const verifyAbha = () => {
-    if (!form.abha.trim()) {
-      toast.warning('Enter an ABHA number or mobile to verify.');
-      return;
-    }
     setAbhaState('checking');
     setTimeout(() => {
       setAbhaState('verified');
@@ -25,17 +43,51 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
     }, 1200);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.mobile.trim()) {
       toast.warning('Name and mobile are required.');
       return;
     }
-    toast.success('Patient registered (mock)', {
-      description: `UHID 2000856 issued for ${form.name}. Duplicate check passed against 18,432 records.`,
-    });
-    setForm({ name: '', age: '', sex: 'M', mobile: '', abha: '', address: '' });
-    setAbhaState('idle');
+    if (!form.dob && !form.age) {
+      toast.warning('Enter the date of birth or age.');
+      return;
+    }
+
+    if (!live) {
+      toast.success('Patient registered (demo data)', {
+        description: `UHID 2000856 issued for ${form.name}. Connect the BFF to write to Frappe Health.`,
+      });
+      setForm({ name: '', dob: '', age: '', sex: 'M', mobile: '', email: '', bloodGroup: '' });
+      setAbhaState('idle');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const created = await createPatient({
+        name: form.name.trim(),
+        sex: form.sex as 'M' | 'F' | 'O',
+        mobile: form.mobile.trim(),
+        ...(form.dob ? { dob: form.dob } : { age: Number(form.age) }),
+        ...(form.email ? { email: form.email } : {}),
+        ...(form.bloodGroup ? { bloodGroup: form.bloodGroup } : {}),
+      });
+      toast.success('Patient registered in Frappe Health', {
+        description: `UHID ${created.uhid} issued for ${created.name}.`,
+      });
+      setForm({ name: '', dob: '', age: '', sex: 'M', mobile: '', email: '', bloodGroup: '' });
+      setAbhaState('idle');
+      searchPatients(q).then(setLiveRows).catch(() => {});
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'DUPLICATE') {
+        toast.warning('Possible duplicate', { description: err.message });
+      } else {
+        toast.error('Registration failed', { description: err instanceof Error ? err.message : 'Unknown error' });
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const field = (label: string, node: React.ReactNode) => (
@@ -45,16 +97,18 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
     </label>
   );
 
-  const input =
-    'focus-ring w-full rounded-xl border border-input px-3 py-2.5 text-[14px] placeholder:text-slate-400';
+  const input = 'focus-ring w-full rounded-xl border border-input px-3 py-2.5 text-[14px] placeholder:text-slate-400';
 
   return (
     <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-4 p-4 lg:grid-cols-5 lg:p-6">
       {/* Lookup */}
       <div className="card-surface h-fit lg:col-span-3">
-        <div className="border-b border-border px-5 py-4">
-          <h2 className="text-[16px] font-bold">Patient lookup</h2>
-          <p className="text-xs text-muted-foreground">Search before registering — duplicate detection by name, mobile and ABHA.</p>
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-[16px] font-bold">Patient lookup</h2>
+            <p className="text-xs text-muted-foreground">Search before registering — duplicate detection by name, mobile and ABHA.</p>
+          </div>
+          <BackendBadge live={live} checking={backend === 'checking'} />
         </div>
         <div className="p-5">
           <div className="relative max-w-md">
@@ -68,33 +122,45 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
                   <th className="th-cell">UHID</th>
                   <th className="th-cell">Patient</th>
                   <th className="th-cell">Mobile</th>
-                  <th className="th-cell">ABHA</th>
+                  <th className="th-cell">Blood</th>
                   <th className="th-cell">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {results.map((p) => (
-                  <tr key={p.uhid} onClick={() => onOpenPatient(p.uhid)} className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-accent/40">
-                    <td className="td-cell font-mono text-[12.5px] text-slate-500">{p.uhid}</td>
-                    <td className="td-cell">
-                      <span className="font-semibold">{p.name}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{p.age}{p.sex}</span>
-                    </td>
-                    <td className="td-cell text-slate-600">{p.mobile}</td>
-                    <td className="td-cell">
-                      {p.abha ? (
-                        <span className="flex items-center gap-1 text-[12px] font-bold text-emerald-700">
-                          <BadgeCheck className="h-3.5 w-3.5" /> Linked
-                        </span>
-                      ) : (
-                        <span className="text-[12px] text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="td-cell"><StatusPill value={p.status} /></td>
-                  </tr>
-                ))}
+                {live
+                  ? (liveRows ?? []).map((p) => (
+                      <tr key={p.uhid} onClick={() => onOpenPatient(p.uhid)} className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-accent/40">
+                        <td className="td-cell font-mono text-[12.5px] text-slate-500">{p.uhid}</td>
+                        <td className="td-cell">
+                          <span className="font-semibold">{p.name}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {p.age ?? '—'}
+                            {p.sex ?? ''}
+                          </span>
+                        </td>
+                        <td className="td-cell text-slate-600">{p.mobile ?? '—'}</td>
+                        <td className="td-cell text-slate-600">{p.bloodGroup ?? '—'}</td>
+                        <td className="td-cell"><StatusPill value={p.status ?? '—'} /></td>
+                      </tr>
+                    ))
+                  : mockRows.map((p) => (
+                      <tr key={p.uhid} onClick={() => onOpenPatient(p.uhid)} className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-accent/40">
+                        <td className="td-cell font-mono text-[12.5px] text-slate-500">{p.uhid}</td>
+                        <td className="td-cell">
+                          <span className="font-semibold">{p.name}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">{p.age}{p.sex}</span>
+                        </td>
+                        <td className="td-cell text-slate-600">{p.mobile}</td>
+                        <td className="td-cell text-slate-600">—</td>
+                        <td className="td-cell"><StatusPill value={p.status} /></td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
+            {live && liveRows !== null && liveRows.length === 0 && !searching && (
+              <p className="py-4 text-center text-[13px] text-muted-foreground">No patients found in Frappe Health{q ? ` for “${q}”` : ''}.</p>
+            )}
+            {live && searching && <p className="py-4 text-center text-[13px] text-muted-foreground">Searching…</p>}
           </div>
         </div>
       </div>
@@ -111,7 +177,10 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
         <div className="space-y-4 p-5">
           {field('Full name', <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Lakshmi Narayanan" className={input} />)}
           <div className="grid grid-cols-2 gap-3">
-            {field('Age', <input value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} placeholder="54" inputMode="numeric" className={input} />)}
+            {field('Date of birth', <input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className={input} />)}
+            {field('…or age', <input value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} placeholder="54" inputMode="numeric" className={input} />)}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             {field(
               'Sex',
               <select value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })} className={input}>
@@ -120,9 +189,18 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
                 <option value="O">Other</option>
               </select>,
             )}
+            {field(
+              'Blood group',
+              <select value={form.bloodGroup} onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })} className={input}>
+                <option value="">—</option>
+                {['A Positive', 'A Negative', 'B Positive', 'B Negative', 'O Positive', 'O Negative', 'AB Positive', 'AB Negative'].map((b) => (
+                  <option key={b}>{b}</option>
+                ))}
+              </select>,
+            )}
           </div>
           {field('Mobile', <input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="+91 …" inputMode="tel" className={input} />)}
-          {field('Address', <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Area, city" className={input} />)}
+          {field('Email (optional)', <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@example.com" className={input} />)}
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
             <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-emerald-800">
@@ -130,12 +208,9 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
             </p>
             <div className="mt-2 flex gap-2">
               <input
-                value={form.abha}
-                onChange={(e) => {
-                  setForm({ ...form, abha: e.target.value });
-                  setAbhaState('idle');
-                }}
+                onChange={() => setAbhaState('idle')}
                 placeholder="ABHA number or linked mobile"
+                aria-label="ABHA number or linked mobile"
                 className="focus-ring w-full rounded-xl border border-emerald-300/70 bg-card px-3 py-2 text-[13px]"
               />
               <button
@@ -152,14 +227,32 @@ export default function Registration({ onOpenPatient }: { onOpenPatient: (uhid: 
                 <BadgeCheck className="h-3.5 w-3.5" /> Verified · will link to the new UHID
               </p>
             )}
+            <p className="mt-2 text-[11px] leading-snug text-emerald-700/80">Placeholder flow — ABDM adapter arrives in the integration phase; stable Marley has no ABHA fields yet.</p>
           </div>
 
-          <button type="submit" className="focus-ring w-full rounded-xl bg-primary py-3 text-[14px] font-bold text-primary-foreground shadow-sm hover:bg-blue-700 active:bg-blue-800">
-            Register &amp; issue UHID
+          <button
+            type="submit"
+            disabled={submitting}
+            className="focus-ring w-full rounded-xl bg-primary py-3 text-[14px] font-bold text-primary-foreground shadow-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60"
+          >
+            {submitting ? 'Saving…' : live ? 'Register in Frappe Health' : 'Register & issue UHID (demo)'}
           </button>
           <p className="text-center text-[11.5px] text-muted-foreground">Consent capture and identity documents follow in the admission step.</p>
         </div>
       </form>
     </div>
+  );
+}
+
+export function BackendBadge({ live, checking }: { live: boolean; checking: boolean }) {
+  if (checking) return <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold text-slate-500">Checking backend…</span>;
+  return live ? (
+    <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/25">
+      <Wifi className="h-3 w-3" /> Live · Frappe Health
+    </span>
+  ) : (
+    <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-600/25">
+      <CloudOff className="h-3 w-3" /> Demo data
+    </span>
   );
 }
