@@ -1,6 +1,16 @@
 import { Bell, Building2, Menu, Search } from 'lucide-react';
 import { patients } from '@/data/mock';
 import { useEffect, useRef, useState } from 'react';
+import { useBackend } from '@/hooks/useBackend';
+import { searchPatients } from '@/lib/api';
+import { BackendBadge } from '@/pages/Registration';
+
+interface SearchRow {
+  uhid: string;
+  name: string;
+  ageSex: string;
+  department: string;
+}
 
 export function Topbar({
   title,
@@ -11,20 +21,43 @@ export function Topbar({
   onOpenPatient: (uhid: string) => void;
   onToggleSidebar: () => void;
 }) {
+  const backend = useBackend();
+  const live = backend === 'live';
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [liveResults, setLiveResults] = useState<SearchRow[]>([]);
   const boxRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
-  const results = q.trim()
-    ? patients.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q.toLowerCase()) ||
-          p.uhid.includes(q) ||
-          p.mobile.replace(/\s/g, '').includes(q.replace(/\s/g, '')),
-      )
+  // Live patient search against the BFF (debounced).
+  useEffect(() => {
+    if (!live || !q.trim()) {
+      setLiveResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      searchPatients(q, 8)
+        .then((rows) =>
+          setLiveResults(rows.map((p) => ({ uhid: p.uhid, name: p.name, ageSex: `${p.age ?? '—'}${p.sex ?? ''}`, department: p.mobile ?? '' }))),
+        )
+        .catch(() => setLiveResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, live]);
+
+  const mockResults: SearchRow[] = q.trim()
+    ? patients
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(q.toLowerCase()) ||
+            p.uhid.includes(q) ||
+            p.mobile.replace(/\s/g, '').includes(q.replace(/\s/g, '')),
+        )
+        .map((p) => ({ uhid: p.uhid, name: p.name, ageSex: `${p.age}${p.sex}`, department: p.department }))
     : [];
+
+  const results = live ? liveResults : mockResults;
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -80,7 +113,7 @@ export function Topbar({
                   <span>
                     <span className="font-semibold">{p.name}</span>
                     <span className="ml-2 text-xs text-muted-foreground">
-                      {p.age}{p.sex} · {p.department}
+                      {p.ageSex} · {p.department}
                     </span>
                   </span>
                   <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] text-slate-500">UHID {p.uhid}</span>
@@ -95,6 +128,8 @@ export function Topbar({
         <Building2 className="h-4 w-4 text-slate-400" />
         Chennai · Main
       </button>
+
+      <BackendBadge live={live} checking={backend === 'checking'} />
 
       <div className="relative" ref={bellRef}>
         <button

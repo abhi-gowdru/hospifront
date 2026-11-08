@@ -8,6 +8,7 @@ import EmrConsult from '@/pages/EmrConsult';
 import IpdBeds from '@/pages/IpdBeds';
 import { LabPage, PharmacyPage, BillingPage } from '@/pages/Departments';
 import { NursingPage, InsurancePage, AppointmentsPage, ReportsPage, SettingsPage } from '@/pages/Misc';
+import { BackendProvider } from '@/hooks/useBackend';
 import { cn } from '@/lib/utils';
 
 const routes: Record<string, { title: string; element: (helpers: { openPatient: (u: string) => void; navigate: (id: string) => void }) => React.ReactNode }> = {
@@ -56,7 +57,8 @@ export default function App() {
   const helpers = { openPatient, navigate };
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <BackendProvider>
+      <div className="flex min-h-dvh bg-background">
       {/* Desktop sidebar */}
       <div className="sticky top-0 hidden h-dvh lg:block">
         <AppSidebar active={route} onNavigate={navigate} onNewPatient={() => navigate('registration')} collapsed={false} />
@@ -80,6 +82,7 @@ export default function App() {
       </div>
 
       <Toaster position="bottom-right" richColors closeButton />
-    </div>
+      </div>
+    </BackendProvider>
   );
 }
