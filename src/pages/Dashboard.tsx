@@ -39,7 +39,7 @@ export default function Dashboard({ onOpenPatient, onNavigate }: { onOpenPatient
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-extrabold tracking-tight">Good morning, Anita</h2>
-          <p className="text-[13px] text-muted-foreground">Sun, 8 Nov · 9:02 AM · Chennai Main</p>
+          <p className="text-[13px] text-muted-foreground">Sun, 8 Nov · 9:02 AM</p>
         </div>
         <div className="flex rounded-xl border border-input bg-card p-1" role="tablist" aria-label="Date range">
           {ranges.map((r) => (

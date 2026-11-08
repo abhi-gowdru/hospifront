@@ -1,15 +1,19 @@
-import { Bell, Building2, Menu, Search } from 'lucide-react';
+import { Bell, Building2, LogOut, Menu, Search } from 'lucide-react';
 import { patients } from '@/data/mock';
 import { useEffect, useRef, useState } from 'react';
 
 export function Topbar({
   title,
+  user,
   onOpenPatient,
   onToggleSidebar,
+  onLogout,
 }: {
   title: string;
+  user: { name: string; role: string };
   onOpenPatient: (uhid: string) => void;
   onToggleSidebar: () => void;
+  onLogout: () => void;
 }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -93,7 +97,7 @@ export function Topbar({
 
       <button className="focus-ring ml-auto hidden items-center gap-2 rounded-xl border border-input px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-muted md:ml-0 md:flex">
         <Building2 className="h-4 w-4 text-slate-400" />
-        Chennai · Main
+        Bengaluru · Main
       </button>
 
       <div className="relative" ref={bellRef}>
@@ -124,11 +128,22 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground">AN</span>
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground">
+          {user.name.slice(0, 2).toUpperCase()}
+        </span>
         <div className="hidden leading-tight xl:block">
-          <p className="text-[13px] font-semibold">Anita Nair</p>
-          <p className="text-[11px] text-muted-foreground">Front office</p>
+          <p className="text-[13px] font-semibold">{user.name}</p>
+          <p className="text-[11px] text-muted-foreground">{user.role}</p>
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="focus-ring grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
     </header>
   );

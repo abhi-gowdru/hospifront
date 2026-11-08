@@ -14,7 +14,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { emrPatient, previousVisits } from '@/data/mock';
+import { bedBoard, emrPatient, patients, previousVisits } from '@/data/mock';
+import type { StaffRole } from '@/pages/Login';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -52,18 +53,51 @@ const tabs = ['Summary', 'Vitals', 'Complaints', 'Rx', 'Investigation', 'Follow 
 
 let rowId = 100;
 
-export default function EmrConsult() {
+function readVisitRecord(uhid: string) {
+  try {
+    const records = JSON.parse(localStorage.getItem('Sanmaya_doctor_visits') ?? '{}') as Record<string, { complaints: string; notes: string; savedAt: string }>;
+    return records[uhid] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export default function EmrConsult({ uhid, session }: { uhid?: string | null; session?: { name: string; role: StaffRole } | null }) {
+  const selectedPatient = uhid ? patients.find((patient) => patient.uhid === uhid) : undefined;
+  const patient = selectedPatient
+    ? {
+        ...emrPatient,
+        name: selectedPatient.name,
+        age: selectedPatient.age,
+        sex: selectedPatient.sex,
+        uhid: selectedPatient.uhid,
+        abha: selectedPatient.abha,
+        token: selectedPatient.token,
+        doctor: selectedPatient.doctor,
+        department: selectedPatient.department,
+        visitType: 'Registered visit',
+        stage: selectedPatient.status,
+        datetime: 'Current encounter',
+        tag: selectedPatient.status,
+        allergies: [],
+      }
+    : emrPatient;
+  const doctorMatchesSession = !selectedPatient ||
+    session?.role !== 'Doctor' ||
+    selectedPatient.doctor.toLowerCase().includes(session.name.toLowerCase()) ||
+    (session.name.toLowerCase().startsWith('dr') && selectedPatient.doctor.toLowerCase().includes(session.name.replace(/^dr[-_\\s]*/i, '')));
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Rx');
-  const [template, setTemplate] = useState('Cardiology: Chest pain follow-up');
-  const [meds, setMeds] = useState<MedRow[]>(templates['Cardiology: Chest pain follow-up']);
-  const [tests, setTests] = useState<string[]>(['LIPID PROFILE', 'HBA1C', 'TROPONIN-T', 'ECG']);
+  const [template, setTemplate] = useState(selectedPatient ? 'Select a template' : 'Cardiology: Chest pain follow-up');
+  const [meds, setMeds] = useState<MedRow[]>(selectedPatient ? [] : templates['Cardiology: Chest pain follow-up']);
+  const [tests, setTests] = useState<string[]>(selectedPatient ? [] : ['LIPID PROFILE', 'HBA1C', 'TROPONIN-T', 'ECG']);
   const [medQuery, setMedQuery] = useState('');
   const [testQuery, setTestQuery] = useState('');
   const [ordersSent, setOrdersSent] = useState(false);
   const [savedAt, setSavedAt] = useState('10:42 AM');
-  const [vitals, setVitals] = useState({ bp: '148/92', pulse: '96', spo2: '97', weight: '68', temp: '98.4' });
-  const [complaints, setComplaints] = useState('Chest pain on exertion · 2 days');
-  const [notes, setNotes] = useState('Exertional chest pain, no radiation. ECG today: sinus rhythm. Continue statin, add anti-platelet. Review with Troponin-T report.');
+  const [vitals, setVitals] = useState(selectedPatient ? { bp: '', pulse: '', spo2: '', weight: '', temp: '' } : { bp: '148/92', pulse: '96', spo2: '97', weight: '68', temp: '98.4' });
+  const savedVisit = selectedPatient ? readVisitRecord(selectedPatient.uhid) : null;
+  const [complaints, setComplaints] = useState(savedVisit?.complaints ?? (selectedPatient ? '' : 'Chest pain on exertion · 2 days'));
+  const [notes, setNotes] = useState(savedVisit?.notes ?? (selectedPatient ? '' : 'Exertional chest pain, no radiation. ECG today: sinus rhythm. Continue statin, add anti-platelet. Review with Troponin-T report.'));
   const [followUp, setFollowUp] = useState('15 Nov 2026');
   const dirtyRef = useRef(false);
 
@@ -86,6 +120,11 @@ export default function EmrConsult() {
 
   const applyTemplate = (name: string) => {
     setTemplate(name);
+    if (!templates[name]) {
+      setMeds([]);
+      markDirty();
+      return;
+    }
     setMeds(templates[name].map((m) => ({ ...m, id: ++rowId })));
     markDirty();
   };
@@ -110,11 +149,35 @@ export default function EmrConsult() {
     dirtyRef.current = false;
     const now = new Date();
     setSavedAt(now.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }));
+    try {
+      const records = JSON.parse(localStorage.getItem('Sanmaya_doctor_visits') ?? '{}') as Record<string, { complaints: string; notes: string; savedAt: string }>;
+      records[patient.uhid] = {
+        complaints,
+        notes,
+        savedAt: now.toISOString(),
+      };
+      localStorage.setItem('Sanmaya_doctor_visits', JSON.stringify(records));
+    } catch {
+      toast.warning('Visit data could not be saved locally.');
+    }
     toast.success(print ? 'Consultation saved · printing prescription' : 'Consultation saved', {
-      description: `Orders sent to lab and pharmacy for UHID ${emrPatient.uhid}.`,
+      description: `Orders sent to lab and pharmacy for UHID ${patient.uhid}.`,
       action: print ? { label: 'View', onClick: () => toast.info('Prescription preview opened (mock).') } : undefined,
     });
   };
+
+  if (selectedPatient && !doctorMatchesSession) {
+    return (
+      <div className="mx-auto max-w-[700px] p-6">
+        <div className="card-surface p-8 text-center">
+          <p className="text-lg font-extrabold text-slate-900">Patient access restricted</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            UHID {selectedPatient.uhid} is assigned to {selectedPatient.doctor}. Only the assigned doctor and authorized staff can view this clinical record.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1440px] p-4 lg:p-6">
@@ -122,34 +185,45 @@ export default function EmrConsult() {
       <div className="card-surface flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4">
         <div className="flex items-center gap-3">
           <span className="relative grid h-12 w-12 place-items-center rounded-full bg-fuchsia-700 text-lg font-extrabold text-white">
-            L
+            {patient.name.charAt(0).toUpperCase()}
             <HeartPulse className="absolute -bottom-1 -right-1 h-4.5 w-4.5 rounded-full bg-card p-0.5 text-rose-500" />
           </span>
           <div>
             <p className="text-[16px] font-extrabold tracking-tight">
-              {emrPatient.name} <span className="ml-1 text-[13px] font-semibold text-muted-foreground">· {emrPatient.age}Y {emrPatient.sex}</span>
+              {patient.name} <span className="ml-1 text-[13px] font-semibold text-muted-foreground">· {patient.age}Y {patient.sex}</span>
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md bg-accent px-2 py-0.5 font-mono text-[11px] font-bold text-accent-foreground">UHID {emrPatient.uhid}</span>
-              <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                ABHA <BadgeCheck className="h-3 w-3" />
-              </span>
-              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-slate-600">Token {emrPatient.token}</span>
+              <span className="rounded-md bg-accent px-2 py-0.5 font-mono text-[11px] font-bold text-accent-foreground">UHID {patient.uhid}</span>
+              {patient.abha && (
+                <span className="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                  ABHA <BadgeCheck className="h-3 w-3" />
+                </span>
+              )}
+              {patient.token && <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-slate-600">Token {patient.token}</span>}
             </div>
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2.5">
           <p className="mr-2 hidden text-[13px] font-medium text-muted-foreground lg:block">
-            {emrPatient.doctor} · {emrPatient.department}
+            {patient.doctor} · {patient.department}
           </p>
           <button
-            onClick={() => toast.info('Admission request created', { description: 'Sent to IPD desk for bed allocation.' })}
+            onClick={() => {
+              const available = bedBoard.flatMap((ward) => ward.beds).filter((bed) => bed.state === 'Available');
+              if (!available.length) {
+                toast.error('No beds available', { description: 'Admission cannot be confirmed. The IPD team has been alerted to prioritize bed availability.' });
+              } else {
+                toast.success('Admission requested', {
+                  description: `${available.length} bed(s) available. The IPD desk will allocate the next suitable bed for UHID ${patient.uhid}.`,
+                });
+              }
+            }}
             className="focus-ring flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 px-3.5 py-2 text-[13px] font-bold text-emerald-700 hover:bg-emerald-100"
           >
             <BedDouble className="h-4 w-4" /> Admit
           </button>
           <button
-            onClick={() => toast.info('Bill initiated', { description: 'Consultation charge added to UHID 2000855.' })}
+            onClick={() => toast.info('Bill initiated', { description: `Consultation charge added to UHID ${patient.uhid}.` })}
             className="focus-ring flex items-center gap-1.5 rounded-xl border border-input px-3.5 py-2 text-[13px] font-bold text-slate-700 hover:bg-muted"
           >
             <Receipt className="h-4 w-4" /> Bill
@@ -162,11 +236,11 @@ export default function EmrConsult() {
         <div className="card-surface p-5 xl:col-span-2">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
             <p>
-              <span className="font-bold text-rose-600">{emrPatient.visitType}</span>
+              <span className="font-bold text-rose-600">{patient.visitType}</span>
               <span className="mx-1.5 text-slate-300">/</span>
-              <span className="font-bold text-teal-600">{emrPatient.stage}</span>
-              <span className="ml-3 font-medium text-muted-foreground">{emrPatient.datetime}</span>
-              <span className="ml-2 rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-foreground">{emrPatient.tag}</span>
+              <span className="font-bold text-teal-600">{patient.stage}</span>
+              <span className="ml-3 font-medium text-muted-foreground">{patient.datetime}</span>
+              <span className="ml-2 rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-foreground">{patient.tag}</span>
             </p>
             <div className="ml-auto flex items-center gap-2">
               <label htmlFor="template" className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground">
@@ -179,6 +253,7 @@ export default function EmrConsult() {
                 onChange={(e) => applyTemplate(e.target.value)}
                 className="focus-ring h-9 rounded-xl border border-primary/40 bg-card px-3 text-[13px] font-semibold text-primary"
               >
+                {selectedPatient && <option value="Select a template">Select a template</option>}
                 {Object.keys(templates).map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -207,9 +282,9 @@ export default function EmrConsult() {
           {/* Vitals + complaints banner (always visible, like Healthray) */}
           <div className="mt-4 rounded-xl border border-rose-200/70 bg-rose-50/70 px-4 py-2.5 text-[13px]">
             <span className="font-bold text-rose-900">
-              VITALS: BP <span className="text-rose-600">{vitals.bp} ↑</span> · Pulse {vitals.pulse} · SpO₂ {vitals.spo2}% · Wt {vitals.weight} kg
+              VITALS: {selectedPatient && !vitals.bp ? 'Not recorded' : <>BP <span className="text-rose-600">{vitals.bp} ↑</span> · Pulse {vitals.pulse} · SpO₂ {vitals.spo2}% · Wt {vitals.weight} kg</>}
             </span>
-            <span className="ml-4 font-semibold text-rose-900/80">COMPLAINTS: {complaints}</span>
+            <span className="ml-4 font-semibold text-rose-900/80">COMPLAINTS: {complaints || 'Not recorded'}</span>
           </div>
 
           {/* Tab panels */}
@@ -390,7 +465,7 @@ export default function EmrConsult() {
                   />
                 </label>
                 <label className="mt-4 block">
-                  <span className="text-[12px] font-semibold text-muted-foreground">Clinical notes</span>
+                  <span className="text-[12px] font-semibold text-muted-foreground">Daily doctor visit & observations</span>
                   <textarea
                     value={notes}
                     onChange={(e) => {
@@ -412,7 +487,7 @@ export default function EmrConsult() {
                 </div>
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Allergies</p>
-                  <p className="mt-1">{emrPatient.allergies.join(', ')}</p>
+                  <p className="mt-1">{patient.allergies.join(', ')}</p>
                 </div>
                 <div className="rounded-xl border border-border p-4">
                   <p className="text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Plan</p>
@@ -495,9 +570,14 @@ export default function EmrConsult() {
         <aside className="card-surface h-fit p-5">
           <div className="flex items-baseline justify-between">
             <h3 className="text-[15px] font-bold">Previous visits</h3>
-            <span className="text-[12px] font-medium text-muted-foreground">3 of 9</span>
+            {!selectedPatient && <span className="text-[12px] font-medium text-muted-foreground">3 of 9</span>}
           </div>
-          <ol className="mt-4 space-y-5">
+          {selectedPatient ? (
+            <p className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+              No previous visit history recorded for this patient.
+            </p>
+          ) : (
+            <ol className="mt-4 space-y-5">
             {previousVisits.map((v) => (
               <li key={v.date} className="border-b border-border/60 pb-5 last:border-0 last:pb-0">
                 <div className="flex items-baseline justify-between gap-2">
@@ -539,13 +619,16 @@ export default function EmrConsult() {
                 )}
               </li>
             ))}
-          </ol>
-          <button
-            onClick={() => toast.info('Full longitudinal chart opens here (mock).')}
-            className="focus-ring mt-4 w-full text-center text-[13px] font-bold text-primary hover:underline"
-          >
-            View all 9 visits
-          </button>
+            </ol>
+          )}
+          {!selectedPatient && (
+            <button
+              onClick={() => toast.info('Full longitudinal chart opens here (mock).')}
+              className="focus-ring mt-4 w-full text-center text-[13px] font-bold text-primary hover:underline"
+            >
+              View all 9 visits
+            </button>
+          )}
         </aside>
       </div>
     </div>

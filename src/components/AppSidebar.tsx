@@ -12,6 +12,8 @@ import {
   UserPlus,
   Users,
   BarChart3,
+  Stethoscope,
+  Syringe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,21 +21,25 @@ export interface NavItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  roles?: Array<'Admin' | 'Doctor' | 'Nurse' | 'Reception'>;
 }
 
 export const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
-  { id: 'registration', label: 'Registration', icon: UserPlus },
-  { id: 'opd', label: 'OPD · Doctor', icon: HeartPulse },
-  { id: 'ipd', label: 'IPD & Beds', icon: BedDouble },
-  { id: 'lab', label: 'Lab & Radiology', icon: FlaskConical },
-  { id: 'pharmacy', label: 'Pharmacy', icon: Pill },
-  { id: 'billing', label: 'Billing', icon: CreditCard },
-  { id: 'insurance', label: 'Insurance & TPA', icon: ShieldCheck },
-  { id: 'nursing', label: 'Nursing', icon: Activity },
-  { id: 'calendar', label: 'Appointments', icon: CalendarDays },
-  { id: 'reports', label: 'Reports', icon: BarChart3 },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'registration', label: 'Patient Management', icon: UserPlus, roles: ['Admin', 'Reception'] },
+  { id: 'opd', label: 'Outpatient', icon: HeartPulse, roles: ['Admin', 'Doctor'] },
+  { id: 'ipd', label: 'Inpatient Management', icon: BedDouble, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'lab', label: 'Laboratory', icon: FlaskConical, roles: ['Admin', 'Doctor', 'Nurse'] },
+  { id: 'pharmacy', label: 'Pharmacy', icon: Pill, roles: ['Admin', 'Doctor', 'Nurse'] },
+  { id: 'billing', label: 'Billing & Payments', icon: CreditCard, roles: ['Admin', 'Reception'] },
+  { id: 'insurance', label: 'Insurance', icon: ShieldCheck, roles: ['Admin', 'Reception'] },
+  { id: 'nursing', label: 'Nursing Care', icon: Activity, roles: ['Admin', 'Doctor', 'Nurse'] },
+  { id: 'calendar', label: 'Appointments', icon: CalendarDays, roles: ['Admin', 'Doctor', 'Reception'] },
+  { id: 'doctors', label: 'Doctor Management', icon: Stethoscope, roles: ['Admin', 'Reception', 'Doctor'] },
+  { id: 'ot', label: 'Surgical Services', icon: Syringe, roles: ['Admin', 'Doctor'] },
+  { id: 'nurses', label: 'Nurse Management', icon: Users, roles: ['Admin', 'Nurse'] },
+  { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['Admin', 'Doctor', 'Nurse', 'Reception'] },
+  { id: 'settings', label: 'System Settings', icon: Settings, roles: ['Admin'] },
 ];
 
 export function AppSidebar({
@@ -41,12 +47,15 @@ export function AppSidebar({
   onNavigate,
   onNewPatient,
   collapsed,
+  role,
 }: {
   active: string;
   onNavigate: (id: string) => void;
   onNewPatient: () => void;
   collapsed: boolean;
+  role?: 'Admin' | 'Doctor' | 'Nurse' | 'Reception';
 }) {
+  const visibleNavItems = navItems.filter((item) => !item.roles || !role || item.roles.includes(role));
   return (
     <aside
       className={cn(
@@ -60,28 +69,30 @@ export function AppSidebar({
         </span>
         {!collapsed && (
           <div className="leading-tight">
-            <p className="text-[15px] font-extrabold tracking-tight text-foreground">Aarogya</p>
+            <p className="text-[15px] font-extrabold tracking-tight text-foreground">Sanmaya</p>
             <p className="text-[11px] font-medium text-muted-foreground">Hospital IMS</p>
           </div>
         )}
       </div>
 
-      <div className={cn('px-3', collapsed && 'px-2')}>
-        <button
-          onClick={onNewPatient}
-          className={cn(
-            'focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800',
-            collapsed && 'px-0',
-          )}
-          aria-label="Register new patient"
-        >
-          <Users className="h-4 w-4" />
-          {!collapsed && <span>New patient</span>}
-        </button>
-      </div>
+      {role !== 'Doctor' && role !== 'Nurse' && (
+        <div className={cn('px-3', collapsed && 'px-2')}>
+          <button
+            onClick={onNewPatient}
+            className={cn(
+              'focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800',
+              collapsed && 'px-0',
+            )}
+            aria-label="Register new patient"
+          >
+            <Users className="h-4 w-4" />
+            {!collapsed && <span>New patient</span>}
+          </button>
+        </div>
+      )}
 
       <nav className="nice-scroll mt-4 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4" aria-label="Modules">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.id;
           return (
@@ -110,14 +121,7 @@ export function AppSidebar({
         })}
       </nav>
 
-      {!collapsed && (
-        <div className="mx-3 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-          <p className="flex items-center gap-1.5 text-[11.5px] font-semibold text-emerald-800">
-            <ShieldCheck className="h-3.5 w-3.5" /> ABDM ready
-          </p>
-          <p className="mt-0.5 text-[11px] leading-snug text-emerald-700/90">ABHA creation &amp; linking at registration (sandbox).</p>
-        </div>
-      )}
+
     </aside>
   );
 }

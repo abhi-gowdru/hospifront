@@ -10,13 +10,24 @@ export interface Patient {
   uhid: string;
   name: string;
   age: number;
-  sex: 'M' | 'F';
+  sex: 'M' | 'F' | 'O';
   mobile: string;
   department: string;
   doctor: string;
   status: PatientStatus;
   abha?: string;
   token?: string;
+  dateOfBirth?: string;
+  email?: string;
+  aadhaar?: string;
+  bloodGroup?: string;
+  maritalStatus?: string;
+  occupation?: string;
+  address?: string;
+  guardianName?: string;
+  guardianRelation?: string;
+  emergencyName?: string;
+  emergencyMobile?: string;
 }
 
 export const patients: Patient[] = [
@@ -29,6 +40,36 @@ export const patients: Patient[] = [
   { uhid: '2000832', name: 'Ganesh Murthy', age: 67, sex: 'M', mobile: '+91 94440 67321', department: 'ENT', doctor: 'Dr. Sanjay Rao', status: 'Waiting', token: 'E-03' },
   { uhid: '2000830', name: 'Priya Krishnan', age: 41, sex: 'F', mobile: '+91 98415 90876', department: 'General Medicine', doctor: 'Dr. Suresh Iyer', status: 'In consult', token: 'G-12' },
 ];
+
+export function loadRegisteredPatients() {
+  const stored = localStorage.getItem('Sanmaya_registered_patients');
+  if (!stored) return;
+  try {
+    const registered = JSON.parse(stored) as Patient[];
+    for (const patient of registered) {
+      if (!patients.some((item) => item.uhid === patient.uhid)) patients.unshift(patient);
+    }
+  } catch {
+    localStorage.removeItem('Sanmaya_registered_patients');
+  }
+}
+
+export function saveRegisteredPatient(patient: Patient) {
+  const stored = localStorage.getItem('Sanmaya_registered_patients');
+  let registered: Patient[] = [];
+  if (stored) {
+    try {
+      registered = JSON.parse(stored) as Patient[];
+    } catch {
+      localStorage.removeItem('Sanmaya_registered_patients');
+    }
+  }
+  localStorage.setItem(
+    'Sanmaya_registered_patients',
+    JSON.stringify([patient, ...registered.filter((item) => item.uhid !== patient.uhid)]),
+  );
+  patients.unshift(patient);
+}
 
 export interface Ward {
   name: string;

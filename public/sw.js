@@ -1,4 +1,4 @@
-/* Aarogya HIMS service worker — network-first for documents, cache-first for static assets */
+/* Sanmaya HIMS service worker — network-first for documents, cache-first for static assets */
 const VERSION = 'hims-v1';
 const STATIC_CACHE = `${VERSION}-static`;
 
